@@ -1,0 +1,17 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# PostgreSQL backups and runtime data
+backups/
+pgdata/
+*.pid
+*.log
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+

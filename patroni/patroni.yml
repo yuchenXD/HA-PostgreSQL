@@ -1,0 +1,48 @@
+scope: pg-ha
+namespace: /service/
+
+etcd3:
+  host: etcd:2379
+
+restapi:
+  listen: 0.0.0.0:8008
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    synchronous_mode: true
+    synchronous_mode_strict: false
+    synchronous_node_count: 1
+    postgresql:
+      use_slots: true
+      parameters:
+        wal_level: replica
+        synchronous_commit: "on"
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_keep_size: 128MB
+        wal_log_hints: "on"
+        hot_standby: "on"
+        archive_mode: "on"
+        archive_command: "test ! -f /wal-archive/%f && cp %p /wal-archive/%f"
+        archive_timeout: 60s
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+  pg_hba:
+    - local all all trust
+    - host replication replicator 0.0.0.0/0 scram-sha-256
+    - host all all 0.0.0.0/0 scram-sha-256
+
+postgresql:
+  listen: 0.0.0.0:5432
+  data_dir: /var/lib/postgresql/18/docker
+  bin_dir: /usr/lib/postgresql/18/bin
+  use_pg_rewind: true
+  pg_hba:
+    - local all all trust
+    - host replication replicator 0.0.0.0/0 scram-sha-256
+    - host all all 0.0.0.0/0 scram-sha-256
