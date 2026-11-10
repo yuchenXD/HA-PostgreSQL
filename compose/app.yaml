@@ -1,0 +1,26 @@
+name: ha-postgresql
+
+# Add the Application service after its Image and runtime settings are defined.
+# 待確認 Application 的 Image 與執行設定後，再加入應用程式服務。
+services:
+  haproxy:
+    image: haproxy:3.4.4-alpine
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      APP_VM_IP: ${APP_VM_IP:?Set VM1 private IP}
+      PG_NODE_1_IP: ${PG_NODE_1_IP:?Set VM2 private IP}
+      PG_NODE_2_IP: ${PG_NODE_2_IP:?Set VM3 private IP}
+    configs:
+      - source: haproxy
+        target: /usr/local/etc/haproxy/haproxy.cfg
+    healthcheck:
+      test: [CMD, haproxy, -c, -f, /usr/local/etc/haproxy/haproxy.cfg]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    stop_grace_period: 30s
+
+configs:
+  haproxy:
+    file: ./haproxy.cfg

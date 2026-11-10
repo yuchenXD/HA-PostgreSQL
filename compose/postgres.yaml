@@ -1,0 +1,46 @@
+name: ha-postgresql
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-local/ha-postgresql:18.6-patroni4.1.5}
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      PATRONI_SCOPE: ${PATRONI_SCOPE:-ha-postgresql}
+      PATRONI_NAME: ${PATRONI_NAME:?Set this VM's unique Patroni name}
+      PATRONI_ETCD3_HOSTS: ${ETCD_HOSTS:?Set all three etcd client addresses}
+      PATRONI_POSTGRESQL_LISTEN: ${VM_IP:?Set this VM's private IP}:5432
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: ${VM_IP}:5432
+      PATRONI_RESTAPI_LISTEN: ${VM_IP}:8008
+      PATRONI_RESTAPI_CONNECT_ADDRESS: ${VM_IP}:8008
+      PATRONI_SUPERUSER_USERNAME: ${PATRONI_SUPERUSER_USERNAME:?Set the shared superuser name}
+      PATRONI_SUPERUSER_PASSWORD: ${PATRONI_SUPERUSER_PASSWORD:?Set the shared superuser password}
+      PATRONI_REPLICATION_USERNAME: ${PATRONI_REPLICATION_USERNAME:?Set the shared replication user}
+      PATRONI_REPLICATION_PASSWORD: ${PATRONI_REPLICATION_PASSWORD:?Set the shared replication password}
+      PATRONI_RESTAPI_USERNAME: ${PATRONI_RESTAPI_USERNAME:?Set the shared API user}
+      PATRONI_RESTAPI_PASSWORD: ${PATRONI_RESTAPI_PASSWORD:?Set the shared API password}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1},0.0.0.0,${APP_VM_IP:?Set VM1 IP},${PG_NODE_1_IP:?Set VM2 IP},${PG_NODE_2_IP:?Set VM3 IP}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1},0.0.0.0,${APP_VM_IP},${PG_NODE_1_IP},${PG_NODE_2_IP}
+    configs:
+      - source: patroni
+        target: /etc/patroni/patroni.yml
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os, urllib.request; urllib.request.urlopen('http://' + os.environ['PATRONI_RESTAPI_CONNECT_ADDRESS'] + '/health', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    stop_grace_period: 60s
+
+configs:
+  patroni:
+    file: ./patroni.yaml
+
+volumes:
+  postgres-data:

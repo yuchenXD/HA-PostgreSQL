@@ -1,0 +1,36 @@
+scope: ha-postgresql
+namespace: /service/
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    synchronous_mode: true
+    synchronous_mode_strict: true
+    synchronous_node_count: 1
+    postgresql:
+      use_slots: true
+      parameters:
+        wal_level: replica
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_keep_size: 128MB
+        wal_log_hints: "on"
+        hot_standby: "on"
+        synchronous_commit: "on"
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+postgresql:
+  data_dir: /var/lib/postgresql/18/docker
+  bin_dir: /usr/lib/postgresql/18/bin
+  use_pg_rewind: true
+  pg_hba:
+    - local all all peer
+    # VM peers may be on different subnets; restrict sources at the VM firewall.
+    # VM 節點可能位於不同子網，請以 VM 防火牆限制來源。
+    - host replication replicator 0.0.0.0/0 scram-sha-256
+    - host all all 0.0.0.0/0 scram-sha-256
