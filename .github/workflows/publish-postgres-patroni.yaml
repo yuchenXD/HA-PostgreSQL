@@ -88,14 +88,29 @@ jobs:
           PY
 
       - name: Smoke test published images
-        env:
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          for platform in linux/amd64 linux/arm64; do
-            docker run --rm --platform "$platform" --network none \
-              --entrypoint python "${IMAGE_NAME}@${IMAGE_DIGEST}" \
-              -c "import platform, psycopg, patroni.dcs.etcd3; from importlib.metadata import version; assert version('patroni') == '4.1.5'; print(platform.machine(), 'Patroni', version('patroni'), 'psycopg and etcd3: OK')"
-          done
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+
+          index = json.loads((Path(os.environ['RUNNER_TEMP']) / 'postgres-patroni-index.json').read_text())
+          script = "import platform, psycopg, patroni.dcs.etcd3; from importlib.metadata import version; assert version('patroni') == '4.1.5'; print(platform.machine(), 'Patroni', version('patroni'), 'psycopg and etcd3: OK')"
+          for architecture in ('amd64', 'arm64'):
+              manifest = next(
+                  item for item in index['manifests']
+                  if item.get('platform', {}).get('os') == 'linux'
+                  and item.get('platform', {}).get('architecture') == architecture
+              )
+              # Classic Docker stores only one platform per index digest.
+              # Pull each platform's manifest digest to avoid a local cache conflict.
+              image = f"{os.environ['IMAGE_NAME']}@{manifest['digest']}"
+              subprocess.run([
+                  'docker', 'run', '--rm', '--platform', f'linux/{architecture}',
+                  '--network', 'none', '--entrypoint', 'python', image, '-c', script,
+              ], check=True)
+          PY
 
       - name: Record published image
         env:
