@@ -23,4 +23,4 @@ services:
 
 configs:
   haproxy:
-    file: ./haproxy.cfg
+    file: ../config/haproxy.cfg

@@ -1,6 +1,8 @@
-# etcd.yaml：三台 VM 的協調服務
+# etcd-compose.yaml：三台 VM 的協調服務
 
-對應 `compose/etcd.yaml`，每台 VM 執行一個 etcd 成員。所有命令從 Repository 根目錄執行。
+對應 `compose/etcd-compose.yaml`，每台 VM 執行一個 etcd 成員。所有命令從 Repository 根目錄執行。
+
+`compose/` 僅存放三份 `*-compose.yaml` 部署檔；Patroni 與 HAProxy 的服務設定分別放在 `config/patroni.yaml` 與 `config/haproxy.cfg`，由對應的 Compose 檔掛載。
 
 | VM | 服務 | 範例私有 IP | 節點設定檔 |
 | --- | --- | --- | --- |
@@ -25,9 +27,9 @@ VM2、VM3 分別使用 `vm2`、`vm3`。依實際 VM 網路修改範本 IP；三�
 先在三台 VM 分別啟動 etcd，以下以 VM1 為例：
 
 ```bash
-docker compose --env-file env/vm1.env -f compose/etcd.yaml up -d
-docker compose --env-file env/vm1.env -f compose/etcd.yaml exec etcd etcdctl --endpoints=http://127.0.0.1:2379 endpoint health
-docker compose --env-file env/vm1.env -f compose/etcd.yaml exec etcd etcdctl --endpoints=http://127.0.0.1:2379 member list
+docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml up -d
+docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml exec etcd etcdctl --endpoints=http://127.0.0.1:2379 endpoint health
+docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml exec etcd etcdctl --endpoints=http://127.0.0.1:2379 member list
 ```
 
 VM2、VM3 將命令的 env 檔換成自己的檔案。至少兩個成員可互連後才能形成 quorum；不要在只啟動第一台時等待三台全部健康才啟動下一台。確認三台健康後，依 `POSTGRES.md` 啟動資料庫，再依 `APP.md` 啟動入口。
@@ -44,7 +46,7 @@ VM2、VM3 將命令的 env 檔換成自己的檔案。至少兩個成員可互�
 ## 停止
 
 ```bash
-docker compose --env-file env/vm1.env -f compose/etcd.yaml stop etcd
+docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml stop etcd
 ```
 
 一次維護一個成員，保留另外兩個在線。不要執行 `down -v`，除非確定要刪除該 VM 的叢集資料。

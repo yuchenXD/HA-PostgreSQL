@@ -40,7 +40,7 @@ services:
 
 configs:
   patroni:
-    file: ./patroni.yaml
+    file: ../config/patroni.yaml
 
 volumes:
   postgres-data:

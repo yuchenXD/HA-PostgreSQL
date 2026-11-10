@@ -1,8 +1,8 @@
-# app.yaml：Application VM 的資料庫入口
+# app-compose.yaml：Application VM 的資料庫入口
 
-對應 `compose/app.yaml` 與 `compose/haproxy.cfg`，部署於 VM1。先依 `ETCD.md` 啟動三個 etcd，再依 `POSTGRES.md` 啟動資料庫。
+對應 `compose/app-compose.yaml` 與 `config/haproxy.cfg`，部署於 VM1。先依 `ETCD.md` 啟動三個 etcd，再依 `POSTGRES.md` 啟動資料庫。
 
-Application 的 Image、埠與啟動方式尚未指定，本階段 `app.yaml` 只建立 HAProxy。後續可以加入 Application service；若使用 bridge network，直接連線至 VM1 的私有 IP 與 5000 埠即可。
+Application 的 Image、埠與啟動方式尚未指定，本階段 `app-compose.yaml` 只建立 HAProxy。後續可以加入 Application service；若使用 bridge network，直接連線至 VM1 的私有 IP 與 5000 埠即可。
 
 ## 啟動
 
@@ -13,8 +13,8 @@ Application 的 Image、埠與啟動方式尚未指定，本階段 `app.yaml` �
 - `PG_NODE_2_IP`：VM3 的私有 IP。
 
 ```bash
-docker compose --env-file env/vm1.env -f compose/etcd.yaml -f compose/app.yaml up -d --wait
-docker compose --env-file env/vm1.env -f compose/etcd.yaml -f compose/app.yaml ps
+docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml -f compose/app-compose.yaml up -d --wait
+docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml -f compose/app-compose.yaml ps
 ```
 
 HAProxy 以 HTTP `/primary` 檢查兩個 Patroni 的 8008 埠，僅將新 SQL 連線送往回傳 HTTP 200 的 Primary。此端點用於角色檢查，不需把 Patroni 管理密碼放入 HAProxy。
@@ -30,7 +30,7 @@ psql -h <VM1_PRIVATE_IP> -p 5000 -U <DATABASE_USER> -d <DATABASE_NAME> -W
 ## 維護與限制
 
 ```bash
-docker compose --env-file env/vm1.env -f compose/etcd.yaml -f compose/app.yaml stop haproxy
+docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml -f compose/app-compose.yaml stop haproxy
 ```
 
 VM1 的 TCP 5000 僅允許 Application 或指定管理來源。VM1 上的 Application 與 HAProxy 仍是單點，VM1 故障時即使資料庫仍有 Primary，應用入口也會中斷。三台 VM 同在一台 Mac，只能演練 VM 層級故障，不能抵抗整台 Mac 故障。

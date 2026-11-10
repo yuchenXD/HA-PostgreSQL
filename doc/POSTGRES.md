@@ -1,6 +1,6 @@
-# postgres.yaml：每台資料庫 VM 一個節點
+# postgres-compose.yaml：每台資料庫 VM 一個節點
 
-對應 `compose/postgres.yaml` 與 `compose/patroni.yaml`，部署於 VM2、VM3。前置步驟與 VM 網路配置見 `ETCD.md`。
+對應 `compose/postgres-compose.yaml` 與 `config/patroni.yaml`，部署於 VM2、VM3。前置步驟與 VM 網路配置見 `ETCD.md`。
 
 ## 環境變數與 Image
 
@@ -28,8 +28,8 @@ docker build -t local/ha-postgresql:18.6-patroni4.1.5 image
 先確認三個 etcd 成員健康。VM2 執行：
 
 ```bash
-docker compose --env-file env/.env --env-file env/vm2.env -f compose/etcd.yaml -f compose/postgres.yaml up -d --wait
-docker compose --env-file env/.env --env-file env/vm2.env -f compose/etcd.yaml -f compose/postgres.yaml exec postgres patronictl -c /etc/patroni/patroni.yml list
+docker compose --env-file env/.env --env-file env/vm2.env -f compose/etcd-compose.yaml -f compose/postgres-compose.yaml up -d --wait
+docker compose --env-file env/.env --env-file env/vm2.env -f compose/etcd-compose.yaml -f compose/postgres-compose.yaml exec postgres patronictl -c /etc/patroni/patroni.yml list
 ```
 
 VM3 將 `vm2.env` 換成 `vm3.env`。兩台並行啟動即可，Patroni 會透過 etcd 選出 Primary。每台的 PostgreSQL 與 Patroni 都宣告自己的 VM IP，無需跨 VM Docker service discovery。
@@ -48,7 +48,7 @@ VM3 將 `vm2.env` 換成 `vm3.env`。兩台並行啟動即可，Patroni 會透�
 ## 維護
 
 ```bash
-docker compose --env-file env/.env --env-file env/vm2.env -f compose/etcd.yaml -f compose/postgres.yaml stop postgres
+docker compose --env-file env/.env --env-file env/vm2.env -f compose/etcd-compose.yaml -f compose/postgres-compose.yaml stop postgres
 ```
 
 只停止資料庫可保留同機 etcd。一般停止或重建容器不刪除 named volume；`down -v` 會刪資料。既有叢集的密碼需另行輪替；`bootstrap.dcs` 只於初始化生效，之後透過 Patroni 修改動態設定。
