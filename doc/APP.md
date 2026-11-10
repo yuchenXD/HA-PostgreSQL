@@ -12,6 +12,12 @@ Application 的 Image、埠與啟動方式尚未指定，本階段 `app-compose.
 - `PG_NODE_1_IP`：VM2 的私有 IP。
 - `PG_NODE_2_IP`：VM3 的私有 IP。
 
+HAProxy 設定不含帳密，啟動前允許容器讀取掛載檔：
+
+```bash
+chmod 644 config/haproxy.cfg
+```
+
 ```bash
 docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml -f compose/app-compose.yaml up -d --wait
 docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml -f compose/app-compose.yaml ps

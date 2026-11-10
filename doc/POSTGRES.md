@@ -15,13 +15,33 @@ chmod 600 env/.env
 
 真實 `.env` 與 `vm*.env` 不進 Git；範本可以提交。原本單機用的 `env/.env` 如已存在，可以沿用帳密，不要直接覆寫。
 
-`POSTGRES_IMAGE` 預設為我們自建的 Image 名稱。最簡單的 ARM64 實驗方式是在兩台 ARM64 Linux VM 各自從 `image/Dockerfile` 建置：
+Patroni 以非 root 的 `postgres` 使用者執行。`config/patroni.yaml` 不含帳密，請允許容器讀取；本機 Compose 的檔案型 `configs` 使用 bind mount，不能依賴 `uid`／`gid`／`mode` 改變原始檔案權限。帳密檔仍維持 `600`：
 
 ```bash
-docker build -t local/ha-postgresql:18.6-patroni4.1.5 image
+chmod 644 config/patroni.yaml
+chmod 600 env/.env
 ```
 
-如果建置環境需要 HTTPS 代理 CA，額外傳入 `--secret id=proxy_ca,src=/path/to/ca-bundle.pem`。也可事先發布到 Docker Hub，兩台使用同一個有 ARM64 支援的 Image tag／digest，再修改 `POSTGRES_IMAGE`。本次不建立或推送 Docker Hub Image。
+`POSTGRES_IMAGE` 預設為 `yuchen1226/postgres-patroni:18.6-patroni4.1.5`。若尚未發布至 Docker Hub，可在兩台 ARM64 Linux VM 各自從 `image/Dockerfile` 建置同名 Image：
+
+```bash
+docker build -t yuchen1226/postgres-patroni:18.6-patroni4.1.5 image
+```
+
+如果建置環境需要 HTTPS 代理 CA，額外傳入 `--secret id=proxy_ca,src=/path/to/ca-bundle.pem`。映像發布至 Docker Hub 後，也可在兩台 VM 拉取同一個有 ARM64 支援的 tag／digest：
+
+```bash
+docker pull yuchen1226/postgres-patroni:18.6-patroni4.1.5
+```
+
+發布者先以 Docker Hub 帳號登入，再使用支援目標架構的 Buildx builder 建置並推送。M2 的 Linux VM 需要 `linux/arm64`；不要僅發布 `linux/amd64`：
+
+```bash
+docker login -u yuchen1226
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t yuchen1226/postgres-patroni:18.6-patroni4.1.5 \
+  --push image
+```
 
 ## 啟動
 

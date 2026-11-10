@@ -2,7 +2,7 @@ name: ha-postgresql
 
 services:
   postgres:
-    image: ${POSTGRES_IMAGE:-local/ha-postgresql:18.6-patroni4.1.5}
+    image: ${POSTGRES_IMAGE:-yuchen1226/postgres-patroni:18.6-patroni4.1.5}
     network_mode: host
     restart: unless-stopped
     environment:
