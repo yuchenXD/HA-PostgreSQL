@@ -30,7 +30,5 @@ postgresql:
   use_pg_rewind: true
   pg_hba:
     - local all all peer
-    # VM peers may be on different subnets; restrict sources at the VM firewall.
-    # VM 節點可能位於不同子網，請以 VM 防火牆限制來源。
     - host replication replicator 0.0.0.0/0 scram-sha-256
     - host all all 0.0.0.0/0 scram-sha-256

@@ -1,4 +1,4 @@
-name: ha-postgresql
+name: ha-etcd
 
 services:
   etcd:
@@ -6,19 +6,15 @@ services:
     network_mode: host
     restart: unless-stopped
     environment:
-      ETCD_NAME: ${ETCD_NAME:?Set this VM's unique etcd name}
+      ETCD_NAME: ${ETCD_NAME}
       ETCD_DATA_DIR: /etcd-data
-      ETCD_LISTEN_CLIENT_URLS: http://${VM_IP:?Set this VM's private IP}:2379,http://127.0.0.1:2379
+      ETCD_LISTEN_CLIENT_URLS: http://${VM_IP}:2379,http://127.0.0.1:2379
       ETCD_ADVERTISE_CLIENT_URLS: http://${VM_IP}:2379
       ETCD_LISTEN_PEER_URLS: http://${VM_IP}:2380
       ETCD_INITIAL_ADVERTISE_PEER_URLS: http://${VM_IP}:2380
-      ETCD_INITIAL_CLUSTER: ${ETCD_INITIAL_CLUSTER:?Set all three etcd peer addresses}
-      ETCD_INITIAL_CLUSTER_TOKEN: ${ETCD_INITIAL_CLUSTER_TOKEN:?Set a shared cluster token}
-      ETCD_INITIAL_CLUSTER_STATE: new
-      # Keep local and inter-VM cluster traffic out of HTTPS proxies.
-      # 本機及 VM 間的叢集通訊不經過 HTTPS 代理。
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1},0.0.0.0,${APP_VM_IP:?Set VM1 IP},${PG_NODE_1_IP:?Set VM2 IP},${PG_NODE_2_IP:?Set VM3 IP}
-      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1},0.0.0.0,${APP_VM_IP},${PG_NODE_1_IP},${PG_NODE_2_IP}
+      ETCD_INITIAL_CLUSTER: ${ETCD_INITIAL_CLUSTER}
+      ETCD_INITIAL_CLUSTER_TOKEN: ${ETCD_INITIAL_CLUSTER_TOKEN}
+      ETCD_INITIAL_CLUSTER_STATE: ${ETCD_INITIAL_CLUSTER_STATE:-new}
     healthcheck:
       test: [CMD, /usr/local/bin/etcdctl, --endpoints=http://127.0.0.1:2379, endpoint, health]
       interval: 5s
@@ -31,3 +27,4 @@ services:
 
 volumes:
   etcd-data:
+    name: ${ETCD_VOLUME_NAME:?Set this VM's etcd volume name}

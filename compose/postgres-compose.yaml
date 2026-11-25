@@ -19,8 +19,6 @@ services:
       PATRONI_REPLICATION_PASSWORD: ${PATRONI_REPLICATION_PASSWORD:?Set the shared replication password}
       PATRONI_RESTAPI_USERNAME: ${PATRONI_RESTAPI_USERNAME:?Set the shared API user}
       PATRONI_RESTAPI_PASSWORD: ${PATRONI_RESTAPI_PASSWORD:?Set the shared API password}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1},0.0.0.0,${APP_VM_IP:?Set VM1 IP},${PG_NODE_1_IP:?Set VM2 IP},${PG_NODE_2_IP:?Set VM3 IP}
-      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1},0.0.0.0,${APP_VM_IP},${PG_NODE_1_IP},${PG_NODE_2_IP}
     configs:
       - source: patroni
         target: /etc/patroni/patroni.yml
@@ -44,3 +42,4 @@ configs:
 
 volumes:
   postgres-data:
+    name: ${POSTGRES_VOLUME_NAME:?Set this VM's PostgreSQL volume name}

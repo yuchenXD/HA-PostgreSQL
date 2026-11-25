@@ -2,53 +2,97 @@
 
 對應 `compose/etcd-compose.yaml`，每台 VM 執行一個 etcd 成員。所有命令從 Repository 根目錄執行。
 
-`compose/` 僅存放三份 `*-compose.yaml` 部署檔；Patroni 與 HAProxy 的服務設定分別放在 `config/patroni.yaml` 與 `config/haproxy.cfg`，由對應的 Compose 檔掛載。
+`compose/` 存放三份部署檔與各 VM 自己的 `compose/.env`。Patroni 與 HAProxy 的設定由對應的 Compose 檔從 `config/` 掛載。
 
-| VM | 服務 | 範例私有 IP | 節點設定檔 |
+| VM | 服務 | 實驗環境私有 IP | 範本 |
 | --- | --- | --- | --- |
-| VM1 | etcd-1、HAProxy、未來的 Application | 192.168.64.11 | env/vm1.env |
-| VM2 | etcd-2、PostgreSQL + Patroni | 192.168.64.12 | env/vm2.env |
-| VM3 | etcd-3、PostgreSQL + Patroni | 192.168.64.13 | env/vm3.env |
+| VM1 | `lab_ubuntu_node_1`、PostgreSQL + Patroni | 192.168.230.150 | `env/postgres.env.example` |
+| VM2 | `lab_ubuntu_node_2`、PostgreSQL + Patroni | 192.168.230.151 | `env/postgres.env.example` |
+| VM3 | `lab_ubuntu_node_3`、HAProxy | 192.168.230.152 | `env/app.env.example` |
 
-三份 Compose 使用 Linux VM 的 host network，直接使用 VM IP，不依賴跨主機 Docker DNS。Mac M2 上請建立三台 ARM64 Linux VM，在各 VM 裡安裝 Docker Engine 與 Compose v2；不要直接在 macOS 執行這些部署命令。VM 必須彼此可達，且能連出至 Image registry。
+三份 Compose 使用 Linux VM 的 host network，直接使用 VM IP 通訊。Mac M2 上請使用三台可互通的 ARM64 Linux VM，並在各 VM 安裝 Docker Engine 與 Docker Compose。可從 Registry 拉取映像，或使用 `docker load -i` 載入對應的映像封存檔。若目前的帳號需要 sudo 才能存取 Docker，以下 Docker 命令要加上 `sudo`。
 
-## 準備與啟動
+## 準備環境變數
 
-每台 VM 複製 Repository，複製自己對應的環境範本。例如 VM1：
-
-```bash
-cp env/vm1.env.example env/vm1.env
-```
-
-VM2、VM3 分別使用 `vm2`、`vm3`。依實際 VM 網路修改範本 IP；三台的 `APP_VM_IP`、`PG_NODE_1_IP`、`PG_NODE_2_IP`、`ETCD_INITIAL_CLUSTER`、`ETCD_HOSTS`、`ETCD_INITIAL_CLUSTER_TOKEN` 必須一致。`VM_IP` 與 `ETCD_NAME` 各自不同。
-
-`ETCD_INITIAL_CLUSTER` 是完整的三成員 peer 清單；`ETCD_HOSTS` 是 Patroni 使用的三個 client endpoint，不含 `http://`。使用固定 IP 或 DHCP reservation，避免重啟後位址改變。
-
-先在三台 VM 分別啟動 etcd，以下以 VM1 為例：
+VM1 與 VM2 共用 PostgreSQL 範本，在各自的 VM 執行以下命令。範本預填 VM1 的節點設定。VM2 在啟動服務前，先把 `compose/.env` 裡的七個值改成 [VM2 的設定](POSTGRES.md#vm2-專用設定)。
 
 ```bash
-docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml up -d
-docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml exec etcd etcdctl --endpoints=http://127.0.0.1:2379 endpoint health
-docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml exec etcd etcdctl --endpoints=http://127.0.0.1:2379 member list
+test -e compose/.env || install -m 600 env/postgres.env.example compose/.env
 ```
 
-VM2、VM3 將命令的 env 檔換成自己的檔案。至少兩個成員可互連後才能形成 quorum；不要在只啟動第一台時等待三台全部健康才啟動下一台。確認三台健康後，依 `POSTGRES.md` 啟動資料庫，再依 `APP.md` 啟動入口。
+VM3 使用 App 範本。
+
+```bash
+test -e compose/.env || install -m 600 env/app.env.example compose/.env
+```
+
+已部署的 VM 保留現有 `compose/.env`，依範本補上 `ETCD_VOLUME_NAME`。若使用不同的私有 IP，更新各範本對應的 peer、client 與 HAProxy backend 位址。三台使用相同的 `ETCD_INITIAL_CLUSTER_TOKEN`。
+
+## 首次建立叢集
+
+VM1 以 `new` 建立單成員叢集。VM2 與 VM3 以 `existing` 依序加入，peer 清單各自對應加入當下的成員。以下步驟用於三台都還沒有 etcd 資料的情況。
+
+### 1. 在 VM1 建立叢集並登記 VM2
+
+```bash
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml up -d --wait
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml exec etcd \
+  etcdctl member add lab_ubuntu_node_2 --peer-urls=http://192.168.230.151:2380 --learner
+```
+
+### 2. 在 VM2 啟動 etcd
+
+先核對 `member add` 印出的 `ETCD_INITIAL_CLUSTER` 與 `ETCD_INITIAL_CLUSTER_STATE`。
+
+```bash
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml up -d
+```
+
+### 3. 回到 VM1 提升 VM2 並登記 VM3
+
+將 `MEMBER_ID` 設成 `member add` 回傳的 VM2 ID。若 etcd 回報 learner 尚未追上，等同步後再重試 `member promote`。
+
+```bash
+MEMBER_ID='填入 VM2 的成員 ID'
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml exec etcd \
+  etcdctl member promote "$MEMBER_ID" &&
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml exec etcd \
+  etcdctl member add lab_ubuntu_node_3 --peer-urls=http://192.168.230.152:2380 --learner
+```
+
+### 4. 在 VM3 啟動 etcd，再回 VM1 提升 VM3
+
+核對 VM3 的設定後，在 VM3 執行步驟 2 的啟動命令。回 VM1 填入 VM3 的成員 ID，執行以下命令。成員加入與提升的細節見 [etcd Runtime reconfiguration](https://etcd.io/docs/v3.6/op-guide/runtime-configuration/#add-a-new-member)。
+
+```bash
+MEMBER_ID='填入 VM3 的成員 ID'
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml exec etcd \
+  etcdctl member promote "$MEMBER_ID"
+```
+
+### 5. 在 VM1 檢查三個成員
+
+確認三個投票成員與 client endpoint 都正常，再依 `POSTGRES.md` 與 `APP.md` 啟動資料庫與連線入口。
+
+```bash
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml exec etcd etcdctl member list
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml exec etcd \
+  etcdctl --endpoints=http://192.168.230.150:2379,http://192.168.230.151:2379,http://192.168.230.152:2379 endpoint health
+```
 
 ## 網路與資料
 
 - TCP 2379：只允許三台 VM 存取，供 Patroni 與 etcd client 使用。
 - TCP 2380：只允許三台 VM 互通，供 etcd peer 使用。
-- etcd data 存於各 VM 自己的 `etcd-data` named volume，不共用磁碟。
+- etcd 的 Compose 專案名稱為 `ha-etcd`。三台的 named volume 依序為 `ha-etcd-volume_1`、`ha-etcd-volume_2`、`ha-etcd-volume_3`。
 - 這套實驗設定使用私有網路 HTTP，尚未配置 etcd TLS／驗證；正式部署需另行設計。
 
-`ETCD_INITIAL_CLUSTER_STATE=new` 用於全新叢集；保留資料的正常重啟可以沿用。替換或新增成員必須使用 etcd membership 流程，不能只修改初始清單或複製別人的 data volume。
+既有叢集重啟時沿用原本的 volume 和成員設定。替換或新增成員應以目前的叢集成員清單為準，透過 etcd membership 流程處理，並為新成員使用空的資料 volume。
 
 ## 停止
 
 ```bash
-docker compose --env-file env/vm1.env -f compose/etcd-compose.yaml stop etcd
+docker compose --env-file compose/.env -f compose/etcd-compose.yaml stop etcd
 ```
 
 一次維護一個成員，保留另外兩個在線。不要執行 `down -v`，除非確定要刪除該 VM 的叢集資料。
-
-目前只驗證 Compose 設定結構；ARM64 建置、VM 網路與故障演練留待三台 VM 建好後執行。
