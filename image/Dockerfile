@@ -9,12 +9,12 @@ RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then \
         export PIP_CERT=/run/secrets/proxy_ca; \
     fi; \
-    # Only Debian repositories are needed for the Python runtime.
-    # 安裝 Python 執行環境只需要 Debian 套件來源。
+    # Install the Python runtime and pgBackRest from Debian repositories.
+    # 從 Debian 套件來源安裝 Python 執行環境與 pgBackRest。
     apt-get -o Dir::Etc::sourcelist=sources.list.d/debian.sources \
         -o Dir::Etc::sourceparts=- update; \
     apt-get install -y --no-install-recommends \
-        ca-certificates python3 python3-venv; \
+        ca-certificates pgbackrest python3 python3-venv; \
     python3 -m venv /opt/patroni; \
     /opt/patroni/bin/pip install --no-cache-dir \
         "patroni[etcd3,psycopg3]==${PATRONI_VERSION}"; \
